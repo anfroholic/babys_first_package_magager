@@ -38,7 +38,6 @@ erDiagram
         int version
         text path
         text content
-        text change_note
         timestamptz created_at
     }
 
@@ -47,6 +46,8 @@ erDiagram
         int parameter_id FK
         int version "NULL for dev"
         bool is_dev
+        text comment
+        bool breaking
         timestamptz created_at
     }
 
@@ -391,7 +392,7 @@ flowchart TB
 
 ## Publish Flow
 
-Publishing snapshots the current dev state as a new numbered stable version, then resets dev to a clean slate.
+Publishing snapshots the current dev state as a new numbered stable version, then resets dev to a clean slate. An optional `comment` describes what changed, and the `breaking` flag signals that this version contains breaking changes.
 
 ```mermaid
 sequenceDiagram
@@ -400,19 +401,20 @@ sequenceDiagram
     participant DB as PostgreSQL
 
     C->>API: POST /parameters/evezor/Floe/publish
-    API->>DB: publish_parameter(parameter_id)
+    Note over C: Body: {"comment": "Added CAN error handling", "breaking": true}
+    API->>DB: publish_parameter(parameter_id, comment, breaking)
 
     activate DB
     Note over DB: 1. Verify dev version exists
     Note over DB: 2. Next version = MAX(version) + 1
-    Note over DB: 3. Create new stable parameter_version
+    Note over DB: 3. Create new stable parameter_version with comment & breaking flag
     Note over DB: 4. Snapshot file map (dev wins, latest fills gaps)
     Note over DB: 5. Freeze deps — resolve :latest refs to actual versions
     Note over DB: 6. Clear dev file mappings (clean slate)
     deactivate DB
 
     DB-->>API: Returns new version number
-    API-->>C: {"parameter": "Floe", "published_version": 4}
+    API-->>C: {"parameter": "Floe", "published_version": 4, "comment": "...", "breaking": true}
 ```
 
 ## Fork Flow
@@ -454,7 +456,7 @@ sequenceDiagram
 | GET | `/parameters?owner={owner}` | List parameters (optional owner filter) |
 | GET | `/parameters/{owner}/{name}` | Full parameter detail with all versions |
 | POST | `/parameters/{owner}/{name}/file-versions` | Create new file versions, update dev mapping |
-| POST | `/parameters/{owner}/{name}/publish` | Publish dev → new stable version |
+| POST | `/parameters/{owner}/{name}/publish` | Publish dev → new stable version (optional: comment, breaking) |
 | POST | `/parameters/{owner}/{name}/fork` | Fork parameter to another owner |
 | GET | `/resolve/{query}` | Resolve package query → files with content |
 | GET | `/dependencies/{owner}/{name}?selector=` | Full recursive dependency tree |

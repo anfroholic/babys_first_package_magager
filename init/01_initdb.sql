@@ -67,7 +67,6 @@ CREATE TABLE files (
     version INTEGER NOT NULL,
     path TEXT NOT NULL,
     content TEXT NOT NULL,
-    change_note TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     UNIQUE (parameter_id, file_type_id, version)
@@ -86,6 +85,9 @@ CREATE TABLE parameter_versions (
     -- NULL for dev, integer for stable
     version INTEGER,
     is_dev BOOLEAN NOT NULL DEFAULT FALSE,
+
+    comment TEXT,
+    breaking BOOLEAN NOT NULL DEFAULT FALSE,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 

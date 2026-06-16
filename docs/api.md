@@ -153,13 +153,11 @@ Push new content for one or more file types. This creates a new file version for
 ```json
 {
   "files": [
-    { "file_type": "js",  "content": "console.log('hello');", "change_note": "initial draft" },
+    { "file_type": "js",  "content": "console.log('hello');" },
     { "file_type": "py",  "content": "print('hello')" }
   ]
 }
 ```
-
-`change_note` is optional on each file.
 
 **Response:**
 
@@ -170,8 +168,8 @@ POST /parameters/evezor/GuiButton/file-versions
 {
   "parameter": "evezor/GuiButton",
   "created": [
-    { "file_type": "js",  "new_version": 2, "path": "js.js", "change_note": "initial draft" },
-    { "file_type": "py",  "new_version": 1, "path": "GuiButton.py", "change_note": null }
+    { "file_type": "js",  "new_version": 2, "path": "js.js" },
+    { "file_type": "py",  "new_version": 1, "path": "GuiButton.py" }
   ]
 }
 ```
@@ -188,6 +186,17 @@ Snapshots the current dev state as the next stable version. The new version's fi
 
 A dev version **must** already exist; the call fails if it does not.
 
+**Request body (optional):**
+
+```json
+{
+  "comment": "Added CAN error handling",
+  "breaking": true
+}
+```
+
+Both fields are optional. `comment` defaults to `null`, `breaking` defaults to `false`.
+
 **Response:**
 
 ```
@@ -196,11 +205,13 @@ POST /parameters/evezor/GuiButton/publish
 200 OK
 {
   "parameter": "evezor/GuiButton",
-  "published_version": 2
+  "published_version": 2,
+  "comment": "Added CAN error handling",
+  "breaking": true
 }
 ```
 
-`published_version` is the new stable version number (previous highest + 1).
+`published_version` is the new stable version number (previous highest + 1). `breaking` signals that this version contains breaking changes relative to the previous version.
 
 Returns **404** if the parameter does not exist. Returns **500** if no dev version exists for the parameter.
 

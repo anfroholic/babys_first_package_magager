@@ -108,5 +108,76 @@
     "body": {
       "target_owner": "andrew"
     }
+  },
+  {
+    "timestamp": "2026-03-05T04:18:26.898271+00:00",
+    "method": "POST",
+    "path": "/parameters/andrew/AnalogInput/file-versions",
+    "body": {
+      "files": [
+        {
+          "file_type": "js",
+          "content": "new js 23\n\nthis is a thing",
+          "change_note": "comment goes here"
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-03-05T04:49:58.256907+00:00",
+    "method": "POST",
+    "path": "/parameters/andrew/AnalogInput/file-versions",
+    "body": {
+      "files": [
+        {
+          "file_type": "js",
+          "content": "new js 23\nfor andrew"
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-03-05T04:50:01.968892+00:00",
+    "method": "POST",
+    "path": "/parameters/andrew/AnalogInput/file-versions",
+    "body": {
+      "files": [
+        {
+          "file_type": "js",
+          "content": "new js 23\nfor andrew"
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-03-05T04:50:19.742157+00:00",
+    "method": "POST",
+    "path": "/parameters/andrew/AnalogInput/publish",
+    "body": {
+      "comment": "version 2",
+      "breaking": true
+    }
+  },
+  {
+    "timestamp": "2026-03-05T04:52:50.938378+00:00",
+    "method": "POST",
+    "path": "/parameters/andrew/AnalogInput/file-versions",
+    "body": {
+      "files": [
+        {
+          "file_type": "py",
+          "content": "\"\"\"v2\nAnalog Input for ESP32\n\"\"\"\n\nfrom floe import FP, make_var\nfrom Parameter import Parameter\n\nimport machine\n\ntry:\n    import uasyncio as asyncio\nexcept:\n    import asyncio    \n\nclass AnalogInput(Parameter):\n    struct = 'f'  # float\n    \n    def __init__(self, pin, delay, ring_size, noise_reduction, low=0, high=65535, **k):\n        super().__init__(**k)\n        self.low = low      # not implemented yet\n        self.high = high    # not implemented yet\n        self.delay = delay\n        self.dif = noise_reduction\n        self.ring_size = ring_size dcfvdfvgfdfdv\n        # Set up hardware\n        self.pin = machine.ADC(machine.Pin(pin))\n        self.pin.atten(machine.ADC.ATTN_11DB)\n        initial_val = self.pin.read_u16()\n        self.ring = [initial_val] * ring_size\n        self.state = initial_val\n        self.index = 0\n        self.raw_output = False\n        \n        loop = asyncio.get_event_loop()\n        loop.create_task(self.chk())\n\n        \n    async def chk(self):\n        while True:\n            self.ring[self.index] = self.pin.read_u16()\n            self.index += 1\n            if self.index == self.ring_size:\n                self.index = 0\n            state = sum(self.ring)//self.ring_size\n            if self.raw_output:\n                if abs(self.state - state) > self.dif:\n                    self.state = state\n                    self.send()\n            else:\n                # convert to float\n                state = state/65536\n                if abs(self.state - state) > self.dif:\n                    self.state = state\n                    self.send()\n                \n                \n            await asyncio.sleep_ms(self.delay)\n    "
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-03-05T04:53:09.711961+00:00",
+    "method": "POST",
+    "path": "/parameters/andrew/AnalogInput/publish",
+    "body": {
+      "comment": "there is a comment here",
+      "breaking": false
+    }
   }
 ]

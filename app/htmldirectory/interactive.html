@@ -784,7 +784,6 @@
                         <pre class="file-content" id="file-${idx}">${escapeHtml(file.content)}</pre>
                         <div class="new-version-form" id="new-version-form-${idx}" style="display:none">
                             <textarea id="new-version-content-${idx}">${escapeHtml(file.content)}</textarea>
-                            <input type="text" id="new-version-note-${idx}" placeholder="Change note (optional)">
                             <div class="new-version-actions">
                                 <button class="save-btn" onclick="submitNewVersion(${idx})">Save New Version</button>
                                 <button class="cancel-btn" onclick="cancelNewVersion(${idx})">Cancel</button>
@@ -816,7 +815,6 @@
         async function submitNewVersion(idx) {
             const file = currentResolvedData.files[idx];
             const content = document.getElementById(`new-version-content-${idx}`).value;
-            const changeNote = document.getElementById(`new-version-note-${idx}`).value.trim() || null;
             const msgDiv = document.getElementById(`new-version-msg-${idx}`);
 
             msgDiv.innerHTML = '<span style="color: var(--text-secondary)">Saving...</span>';
@@ -830,8 +828,7 @@
                         body: JSON.stringify({
                             files: [{
                                 file_type: file.file_type,
-                                content: content,
-                                change_note: changeNote
+                                content: content
                             }]
                         })
                     }
@@ -1002,6 +999,8 @@
                     ${data.versions.map(v => `
                         <div class="dep-node">
                             <strong>${v.is_dev ? 'dev' : 'v' + v.version}</strong>
+                            ${v.breaking ? '<span style="color:#e74c3c; font-weight:600; margin-left:8px">BREAKING</span>' : ''}
+                            ${v.comment ? `<div style="margin-top: 4px; font-style: italic; color: var(--text-primary)">${v.comment}</div>` : ''}
                             <div style="margin-top: 5px; color: var(--text-secondary)">
                                 File mappings: ${Object.entries(v.file_mappings).map(([type, ver]) =>
                                     `${type}:${ver}`
@@ -1009,7 +1008,15 @@
                             </div>
                         </div>
                     `).join('')}
+                    ${hasDev ? `
                     <div style="margin-top: 20px; display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+                        <input type="text" id="publish-comment" placeholder="Version comment (optional)" style="flex:1; min-width:200px">
+                        <label style="display:flex; align-items:center; gap:4px; color:var(--text-secondary); font-size:0.9rem; cursor:pointer">
+                            <input type="checkbox" id="publish-breaking"> Breaking
+                        </label>
+                    </div>
+                    ` : ''}
+                    <div style="margin-top: 10px; display:flex; gap:10px; flex-wrap:wrap; align-items:center">
                         ${hasDev ? `<button class="save-btn" id="publish-btn" onclick="publishFromModal('${owner}', '${name}')">Publish → v${nextVersion}</button>` : ''}
                         <button class="query-btn" onclick="queryParameter('${owner}', '${name}')">
                             Query Latest
@@ -1043,6 +1050,8 @@
         async function publishFromModal(owner, name) {
             const btn = document.getElementById('publish-btn');
             const msgDiv = document.getElementById('modal-msg');
+            const comment = document.getElementById('publish-comment')?.value.trim() || null;
+            const breaking = document.getElementById('publish-breaking')?.checked || false;
             const originalText = btn.textContent;
             btn.disabled = true;
             btn.textContent = 'Publishing...';
@@ -1050,7 +1059,9 @@
 
             try {
                 const res = await fetch(`${API_BASE}/parameters/${owner}/${name}/publish`, {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ comment, breaking })
                 });
                 if (!res.ok) {
                     const error = await res.json();

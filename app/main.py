@@ -140,13 +140,14 @@ class DependencyNode(BaseModel):
 class ParameterVersion(BaseModel):
     version: Optional[int]
     is_dev: bool
+    comment: Optional[str]
+    breaking: bool
     file_mappings: dict
 
 
 class FileVersionUpdate(BaseModel):
     file_type: str
     content: str
-    change_note: Optional[str] = None
 
 
 class FileVersionBatch(BaseModel):
@@ -155,6 +156,11 @@ class FileVersionBatch(BaseModel):
 
 class OwnerCreate(BaseModel):
     username: str
+
+
+class PublishRequest(BaseModel):
+    comment: Optional[str] = None
+    breaking: bool = False
 
 
 class ForkRequest(BaseModel):
@@ -307,7 +313,7 @@ async def get_parameter(owner: str, name: str):
 
             # Get versions
             cur.execute("""
-                SELECT pv.id, pv.version, pv.is_dev
+                SELECT pv.id, pv.version, pv.is_dev, pv.comment, pv.breaking
                 FROM parameter_versions pv
                 WHERE pv.parameter_id = %s
                 ORDER BY pv.is_dev, pv.version
@@ -327,6 +333,8 @@ async def get_parameter(owner: str, name: str):
                 versions_with_files.append({
                     'version': v['version'],
                     'is_dev': v['is_dev'],
+                    'comment': v['comment'],
+                    'breaking': v['breaking'],
                     'file_mappings': files
                 })
 
@@ -422,7 +430,7 @@ async def create_file_versions(owner: str, name: str, body: FileVersionBatch):
 
     Body example:
         { "files": [
-            { "file_type": "js", "content": "...", "change_note": "rewrote click handler" },
+            { "file_type": "js", "content": "..." },
             { "file_type": "py", "content": "..." }
         ]}
     """
@@ -484,9 +492,9 @@ async def create_file_versions(owner: str, name: str, body: FileVersionBatch):
 
                 # Insert the new file version
                 cur.execute("""
-                    INSERT INTO files (parameter_id, file_type_id, version, path, content, change_note)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (parameter_id, file_type_id, new_version, path, file.content, file.change_note))
+                    INSERT INTO files (parameter_id, file_type_id, version, path, content)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (parameter_id, file_type_id, new_version, path, file.content))
 
                 # Point the dev mapping at the new version (insert or update)
                 cur.execute("""
@@ -499,8 +507,7 @@ async def create_file_versions(owner: str, name: str, body: FileVersionBatch):
                 created.append({
                     "file_type": file.file_type,
                     "new_version": new_version,
-                    "path": path,
-                    "change_note": file.change_note
+                    "path": path
                 })
 
             conn.commit()
@@ -521,10 +528,13 @@ async def create_file_versions(owner: str, name: str, body: FileVersionBatch):
 
 # Publish
 @app.post("/parameters/{owner}/{name}/publish")
-async def publish_version(owner: str, name: str):
+async def publish_version(owner: str, name: str, body: PublishRequest = PublishRequest()):
     """
     Publish the current dev state as the next stable version.
     Snapshots the merged dev+latest file map and freezes dependencies.
+
+    Optional body:
+        { "comment": "Added CAN error handling", "breaking": true }
     """
     conn = get_db_connection()
     try:
@@ -552,16 +562,21 @@ async def publish_version(owner: str, name: str):
                     detail=f"Parameter '{owner}/{name}' has no dev files to publish"
                 )
 
-            cur.execute("SELECT publish_parameter(%s) AS new_version", (param['id'],))
+            cur.execute(
+                "SELECT publish_parameter(%s, %s, %s) AS new_version",
+                (param['id'], body.comment, body.breaking)
+            )
             new_version = cur.fetchone()['new_version']
 
             conn.commit()
 
-            log_replay("POST", f"/parameters/{owner}/{name}/publish")
+            log_replay("POST", f"/parameters/{owner}/{name}/publish", body=body.model_dump())
 
             return {
                 "parameter": f"{owner}/{name}",
-                "published_version": new_version
+                "published_version": new_version,
+                "comment": body.comment,
+                "breaking": body.breaking
             }
     except HTTPException:
         raise
@@ -723,7 +738,8 @@ async def replay_entries(entries: list[dict] | None = None) -> list[dict]:
                 m = re.match(r'^/parameters/([^/]+)/([^/]+)/publish$', path)
                 if m:
                     owner, name = m.groups()
-                    result = await publish_version(owner, name)
+                    pub_body = PublishRequest(**(entry.get("body") or {}))
+                    result = await publish_version(owner, name, pub_body)
                     results.append({"path": path, "timestamp": entry.get("timestamp"), "status": "ok", "result": result})
                     continue
 

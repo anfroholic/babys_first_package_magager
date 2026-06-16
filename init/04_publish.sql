@@ -9,7 +9,9 @@ BEGIN;
 -- Returns the new version number.
 -- =========================================================
 CREATE OR REPLACE FUNCTION publish_parameter(
-    p_parameter_id INTEGER
+    p_parameter_id INTEGER,
+    p_comment TEXT DEFAULT NULL,
+    p_breaking BOOLEAN DEFAULT FALSE
 )
 RETURNS INTEGER AS $$
 DECLARE
@@ -40,8 +42,8 @@ BEGIN
     LIMIT 1;
 
     -- 4. Create the new stable version row
-    INSERT INTO parameter_versions (parameter_id, version, is_dev)
-    VALUES (p_parameter_id, new_version, FALSE)
+    INSERT INTO parameter_versions (parameter_id, version, is_dev, comment, breaking)
+    VALUES (p_parameter_id, new_version, FALSE, p_comment, p_breaking)
     RETURNING id INTO new_pvid;
 
     -- 5. Snapshot merged file map: dev wins, latest fills gaps
